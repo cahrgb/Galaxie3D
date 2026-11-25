@@ -1,0 +1,90 @@
+        /* Configuration globale et prévention du défilement horizontal */
+        * {
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        html, body {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            font-family: 'Inter', sans-serif;
+            background-color: #050816;
+            color: #f8fafc;
+            user-select: none;
+        }
+
+        /* Conteneur du canvas 3D en arrière-plan */
+        #canvas-container {
+            position: fixed;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 0;
+            cursor: grab;
+            touch-action: none;
+        }
+
+        #canvas-container:active {
+            cursor: grabbing;
+        }
+
+        #canvas-container.pointer-card {
+            cursor: pointer;
+        }
+
+        /* Effet verre dépoli (Glassmorphism) */
+        .glass-panel {
+            background: rgba(15, 23, 42, 0.62);
+            backdrop-filter: blur(18px);
+            -webkit-backdrop-filter: blur(18px);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
+        }
+
+        /* Barres de défilement élégantes pour les modales */
+        .custom-scroll::-webkit-scrollbar {
+            width: 6px;
+        }
+        .custom-scroll::-webkit-scrollbar-track {
+            background: rgba(255, 255, 255, 0.04);
+            border-radius: 999px;
+        }
+        .custom-scroll::-webkit-scrollbar-thumb {
+            background: rgba(148, 163, 184, 0.35);
+            border-radius: 999px;
+        }
+        .custom-scroll::-webkit-scrollbar-thumb:hover {
+            background: rgba(148, 163, 184, 0.6);
+        }
+
+        /* Animations fluides */
+        @keyframes fadeInScale {
+            from { opacity: 0; transform: scale(0.95) translateY(8px); }
+            to { opacity: 1; transform: scale(1) translateY(0); }
+        }
+        .animate-modal {
+            animation: fadeInScale 0.22s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+
+        /* Zone de dépôt d'image active */
+        .dropzone-active {
+            border-color: #38bdf8 !important;
+            background-color: rgba(56, 189, 248, 0.14) !important;
+        }
+
+        /* Masquer la barre de défilement sur le sélecteur de galaxies */
+        .no-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .no-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+
+        /* Permettre la sélection dans les champs de saisie */
+        input, textarea {
+            user-select: text;
+        }

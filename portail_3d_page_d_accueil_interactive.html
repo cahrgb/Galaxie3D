@@ -1,0 +1,600 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Portail 3D — Page d'Accueil Interactive</title>
+
+    <!-- Police Inter pour une lisibilité moderne (chargement non bloquant) -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+
+    <!-- Tailwind CSS pour le design réactif et esthétique (copie locale hors-ligne) -->
+    <script src="vendor/tailwind.cdn.js"></script>
+
+    <!-- Three.js r128 pour le rendu 3D WebGL (copie locale hors-ligne) -->
+    <script src="vendor/three.min.js"></script>
+
+    <!-- PDF.js 3.11.174 pour l'aperçu de la 1re page et le lecteur PDF intégré (copie locale hors-ligne) -->
+    <script src="vendor/pdf.min.js"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'system-ui', 'sans-serif'],
+                    },
+                    colors: {
+                        glass: 'rgba(15, 23, 42, 0.65)',
+                    }
+                }
+            }
+        };
+    </script>
+
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+<body class="antialiased selection:bg-sky-500/30 selection:text-sky-200">
+
+    <!-- ==================== SCÈNE 3D THREE.JS ==================== -->
+    <div id="canvas-container" aria-label="Menu interactif en 3D"></div>
+
+    <!-- ==================== INTERFACE SUPERPOSÉE (HUD) ==================== -->
+    <div id="ui-layer" class="fixed inset-0 z-10 pointer-events-none flex flex-col justify-between p-3 sm:p-5 md:p-6">
+
+        <!-- BARRE SUPÉRIEURE ULTRA-ÉPURÉE : Sélecteur de galaxies (sans texte) + Bouton Recherche + Bouton Roue Dentelée -->
+        <header class="relative z-20 w-full flex items-start justify-end gap-2.5 pointer-events-none">
+            <!-- Sélecteur de galaxies en haut à droite (icônes uniquement, aucun texte) -->
+            <nav id="galaxy-switcher" aria-label="Galaxies"
+                class="pointer-events-auto glass-panel rounded-2xl p-1.5 flex items-center gap-1.5 max-w-[calc(100vw-9rem)] overflow-x-auto no-scrollbar">
+                <!-- Généré dynamiquement -->
+            </nav>
+
+            <!-- Bouton Loupe (Recherche rapide Ctrl+K) -->
+            <button id="btn-search-toggle" type="button" aria-haspopup="dialog" title="Rechercher (Ctrl+K)" aria-label="Rechercher (Ctrl+K)"
+                class="pointer-events-auto shrink-0 glass-panel hover:bg-white/15 p-3 rounded-2xl text-slate-100 transition-all active:scale-95 flex items-center justify-center">
+                <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-4.35-4.35m1.85-5.15a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+            </button>
+
+            <div id="options-wrapper" class="relative pointer-events-auto shrink-0">
+                <!-- Bouton Roue Dentelée -->
+                <button id="btn-options-toggle" type="button" aria-haspopup="true" aria-expanded="false" title="Options"
+                    class="glass-panel hover:bg-white/15 p-3 rounded-2xl text-slate-100 transition-all active:scale-95 flex items-center justify-center">
+                    <svg id="icon-options-gear" class="w-5 h-5 transition-transform duration-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                    </svg>
+                </button>
+
+                <!-- Menu d'options complet -->
+                <div id="options-menu" class="hidden animate-modal absolute right-0 mt-2.5 w-72 sm:w-80 max-h-[82vh] overflow-y-auto custom-scroll glass-panel rounded-3xl p-4 space-y-4">
+                    <!-- Action principale : Ajouter -->
+                    <button id="btn-open-add" type="button"
+                        class="w-full px-4 py-2.5 rounded-2xl bg-gradient-to-r from-sky-500 to-indigo-600 hover:from-sky-400 hover:to-indigo-500 text-white font-semibold text-sm shadow-lg shadow-indigo-500/30 flex items-center justify-center gap-2 transition-all active:scale-95">
+                        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4" />
+                        </svg>
+                        <span>Ajouter une carte</span>
+                    </button>
+
+                    <!-- Section Galaxies (ajouter / supprimer) -->
+                    <div class="space-y-1.5">
+                        <div class="px-1 flex items-center justify-between">
+                            <p class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Galaxies</p>
+                            <button id="btn-add-galaxy" type="button"
+                                class="px-2 py-1 rounded-lg bg-sky-500/20 hover:bg-sky-500/35 border border-sky-400/30 text-sky-300 text-[11px] font-semibold flex items-center gap-1 transition-all active:scale-95">
+                                <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4" />
+                                </svg>
+                                <span>Ajouter</span>
+                            </button>
+                        </div>
+                        <div id="galaxy-menu-list" class="bg-slate-950/40 border border-white/10 rounded-2xl p-1.5 space-y-1 max-h-40 overflow-y-auto custom-scroll">
+                            <!-- Généré dynamiquement -->
+                        </div>
+                    </div>
+
+                    <!-- Section Filtres par catégorie -->
+                    <div class="space-y-1.5">
+                        <p class="px-1 text-[10px] font-bold uppercase tracking-wider text-slate-400">Affichage</p>
+                        <div class="bg-slate-950/40 border border-white/10 rounded-2xl p-1.5 space-y-1" role="tablist" aria-label="Filtrer par catégorie">
+                            <button data-filter="all" type="button" class="filter-btn w-full px-3 py-2 rounded-xl text-xs font-semibold transition-all flex items-center justify-between bg-white/15 text-white">
+                                <span>Tout</span>
+                                <span id="count-all" class="px-2 py-0.5 rounded-lg bg-white/10 text-[11px] font-mono">0</span>
+                            </button>
+                            <button data-filter="website" type="button" class="filter-btn w-full px-3 py-2 rounded-xl text-xs font-semibold transition-all flex items-center justify-between text-slate-300 hover:text-white hover:bg-white/5">
+                                <span>🌐 Sites Web</span>
+                                <span id="count-website" class="px-2 py-0.5 rounded-lg bg-white/10 text-[11px] font-mono">0</span>
+                            </button>
+                            <button data-filter="image" type="button" class="filter-btn w-full px-3 py-2 rounded-xl text-xs font-semibold transition-all flex items-center justify-between text-slate-300 hover:text-white hover:bg-white/5">
+                                <span>🖼️ Images</span>
+                                <span id="count-image" class="px-2 py-0.5 rounded-lg bg-white/10 text-[11px] font-mono">0</span>
+                            </button>
+                            <button data-filter="pdf" type="button" class="filter-btn w-full px-3 py-2 rounded-xl text-xs font-semibold transition-all flex items-center justify-between text-slate-300 hover:text-white hover:bg-white/5">
+                                <span>📄 PDF</span>
+                                <span id="count-pdf" class="px-2 py-0.5 rounded-lg bg-white/10 text-[11px] font-mono">0</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Section Options de l'espace 3D -->
+                    <div class="space-y-1.5">
+                        <p class="px-1 text-[10px] font-bold uppercase tracking-wider text-slate-400">Espace 3D</p>
+                        <div class="space-y-1.5">
+                            <!-- Dérive automatique -->
+                            <button id="btn-toggle-autorotate" type="button"
+                                class="w-full px-3 py-2.5 rounded-2xl bg-white/[0.04] hover:bg-white/10 border border-white/10 text-slate-200 transition-all flex items-center justify-between gap-2">
+                                <span class="flex items-center gap-2.5 text-xs font-semibold">
+                                    <svg id="icon-autorotate" class="w-4 h-4 text-sky-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                                    </svg>
+                                    Dérive automatique
+                                </span>
+                                <span id="autorotate-pill" class="w-9 h-5 rounded-full bg-white/15 p-0.5 flex items-center transition-colors">
+                                    <span id="autorotate-knob" class="w-4 h-4 rounded-full bg-slate-300 transition-transform duration-200"></span>
+                                </span>
+                            </button>
+
+                            <!-- Ambiance / Thème 3D -->
+                            <button id="btn-cycle-theme" type="button"
+                                class="w-full px-3 py-2.5 rounded-2xl bg-white/[0.04] hover:bg-white/10 border border-white/10 text-slate-200 transition-all flex items-center justify-between gap-2">
+                                <span class="flex items-center gap-2.5 text-xs font-semibold">
+                                    <svg class="w-4 h-4 text-fuchsia-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01" />
+                                    </svg>
+                                    Ambiance 3D
+                                </span>
+                                <span id="theme-current-name" class="text-[11px] font-medium text-sky-300 truncate max-w-[7.5rem]">Cosmos Spatial</span>
+                            </button>
+
+                            <!-- Sauvegardes -->
+                            <button id="btn-open-manager" type="button"
+                                class="w-full px-3 py-2.5 rounded-2xl bg-white/[0.04] hover:bg-white/10 border border-white/10 text-slate-200 transition-all flex items-center justify-between gap-2">
+                                <span class="flex items-center gap-2.5 text-xs font-semibold">
+                                    <svg class="w-4 h-4 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16" />
+                                    </svg>
+                                    Sauvegardes
+                                </span>
+                                <svg class="w-4 h-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" />
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Section À propos -->
+                    <div class="space-y-1.5 pt-1 border-t border-white/10">
+                        <p class="px-1 text-[10px] font-bold uppercase tracking-wider text-slate-400">À propos</p>
+                        <div class="bg-slate-950/40 border border-white/10 rounded-2xl px-3 py-2.5 text-center space-y-0.5">
+                            <p class="text-xs font-semibold text-slate-100">Charles-Antoine Huberdeau</p>
+                            <p class="text-[11px] text-slate-300">Éducateur spécialisé en TSA</p>
+                            <p class="text-[10px] font-mono text-sky-300/80 pt-0.5">v0.4.0</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <!-- ÉTAT VIDE (affiché uniquement si aucun élément dans le filtre actif) -->
+        <div id="empty-state" class="hidden my-auto mx-auto pointer-events-auto max-w-sm w-full glass-panel rounded-3xl p-6 text-center">
+            <div class="w-14 h-14 mx-auto mb-3 rounded-2xl bg-white/10 flex items-center justify-center text-2xl">✨</div>
+            <h2 class="text-lg font-bold text-white mb-1">Votre espace 3D est vide</h2>
+            <p class="text-xs text-slate-300 mb-4">Glissez directement une image, un PDF ou un lien sur l'écran, ou cliquez ci-dessous pour ajouter une carte.</p>
+            <button id="btn-empty-add" type="button" class="px-4 py-2.5 rounded-2xl bg-sky-500 hover:bg-sky-400 text-white text-xs font-bold shadow-lg shadow-sky-500/25 transition-all">
+                + Ajouter une carte
+            </button>
+        </div>
+    </div>
+
+    <!-- ==================== MODALE AJOUT / MODIFICATION DE CARTE ==================== -->
+    <div id="modal-editor" class="hidden fixed inset-0 z-40 bg-slate-950/75 backdrop-blur-md flex items-center justify-center p-4">
+        <div class="animate-modal glass-panel w-full max-w-lg rounded-3xl overflow-hidden flex flex-col max-h-[92vh]">
+            <!-- En-tête modale -->
+            <div class="px-6 py-4 border-b border-white/10 flex items-center justify-between">
+                <h2 id="editor-modal-title" class="text-lg font-bold text-white">Ajouter une carte 3D</h2>
+                <button id="btn-close-editor" type="button" class="p-1.5 rounded-xl text-slate-400 hover:text-white hover:bg-white/10 transition-colors">
+                    <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+            </div>
+
+            <!-- Formulaire -->
+            <form id="card-form" class="p-6 space-y-4 overflow-y-auto custom-scroll">
+                <input type="hidden" id="input-id">
+
+                <!-- Sélecteur de type : Site Web vs Image vs PDF -->
+                <div>
+                    <label class="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">Type de carte</label>
+                    <div class="grid grid-cols-3 gap-2">
+                        <button type="button" data-type="website" class="type-selector-btn p-2.5 sm:p-3 rounded-2xl border-2 border-sky-500 bg-sky-500/15 text-left transition-all">
+                            <div class="flex items-center gap-1.5 font-bold text-xs sm:text-sm text-white">
+                                <span>🌐</span> Site Web
+                            </div>
+                            <p class="text-[10px] sm:text-[11px] text-slate-300 mt-0.5">Aperçu & boîte web</p>
+                        </button>
+                        <button type="button" data-type="image" class="type-selector-btn p-2.5 sm:p-3 rounded-2xl border-2 border-white/10 bg-white/5 text-left transition-all hover:border-white/25">
+                            <div class="flex items-center gap-1.5 font-bold text-xs sm:text-sm text-white">
+                                <span>🖼️</span> Image
+                            </div>
+                            <p class="text-[10px] sm:text-[11px] text-slate-300 mt-0.5">Zoom plein écran</p>
+                        </button>
+                        <button type="button" data-type="pdf" class="type-selector-btn p-2.5 sm:p-3 rounded-2xl border-2 border-white/10 bg-white/5 text-left transition-all hover:border-white/25">
+                            <div class="flex items-center gap-1.5 font-bold text-xs sm:text-sm text-white">
+                                <span>📄</span> PDF
+                            </div>
+                            <p class="text-[10px] sm:text-[11px] text-slate-300 mt-0.5">Document intégré</p>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Zone d'importation de fichier PDF (uniquement pour PDF) -->
+                <div id="field-pdf-wrapper" class="hidden">
+                    <label class="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">
+                        Fichier PDF * <span class="normal-case font-normal text-slate-400">(inclus dans l'export)</span>
+                    </label>
+                    <div id="pdf-dropzone" class="relative border-2 border-dashed border-white/20 hover:border-sky-400/70 rounded-2xl p-4 text-center cursor-pointer transition-all bg-white/[0.03]">
+                        <input id="input-pdf-file" type="file" accept="application/pdf,.pdf" class="hidden">
+
+                        <!-- État sans PDF -->
+                        <div id="pdf-dropzone-placeholder" class="py-2">
+                            <div class="w-10 h-10 mx-auto mb-2 rounded-xl bg-rose-500/15 text-rose-400 flex items-center justify-center text-lg">
+                                📄
+                            </div>
+                            <p class="text-sm font-medium text-white">Cliquez ou glissez un fichier PDF ici</p>
+                            <p class="text-xs text-slate-400 mt-0.5">Le fichier est embarqué directement dans la carte et l'export</p>
+                        </div>
+
+                        <!-- État avec PDF chargé -->
+                        <div id="pdf-dropzone-loaded" class="hidden flex items-center justify-between gap-3 p-2 rounded-xl bg-slate-900/70 border border-white/10 text-left">
+                            <div class="flex items-center gap-3 min-w-0">
+                                <div class="w-10 h-10 rounded-xl bg-rose-500/20 text-rose-300 flex items-center justify-center text-lg shrink-0">📄</div>
+                                <div class="min-w-0">
+                                    <p id="pdf-file-name" class="text-sm font-semibold text-white truncate">document.pdf</p>
+                                    <p id="pdf-file-size" class="text-xs text-slate-400">0 Ko</p>
+                                </div>
+                            </div>
+                            <button id="btn-remove-pdf" type="button" title="Retirer le PDF"
+                                class="px-2.5 py-1 rounded-xl bg-rose-600/90 hover:bg-rose-500 text-white text-xs font-semibold shrink-0 shadow">
+                                Retirer
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Zone d'importation d'image utilisateur -->
+                <div>
+                    <label class="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">
+                        Image affichée en 3D <span id="image-requirement-hint" class="normal-case font-normal text-slate-400">(facultatif pour un site)</span>
+                    </label>
+                    <div id="image-dropzone" class="relative border-2 border-dashed border-white/20 hover:border-sky-400/70 rounded-2xl p-4 text-center cursor-pointer transition-all bg-white/[0.03]">
+                        <input id="input-image-file" type="file" accept="image/*" class="hidden">
+
+                        <!-- État sans image -->
+                        <div id="dropzone-placeholder" class="py-3">
+                            <div class="w-10 h-10 mx-auto mb-2 rounded-xl bg-sky-500/15 text-sky-400 flex items-center justify-center">
+                                <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                </svg>
+                            </div>
+                            <p class="text-sm font-medium text-white">Cliquez ou glissez une image ici</p>
+                            <p class="text-xs text-slate-400 mt-0.5">PNG, JPG, WEBP — Optimisée automatiquement pour la 3D</p>
+                        </div>
+
+                        <!-- Prévisualisation de l'image chargée -->
+                        <div id="dropzone-preview-wrapper" class="hidden relative">
+                            <img id="dropzone-preview" src="" alt="Aperçu de la carte" class="w-full h-44 object-cover rounded-xl border border-white/15">
+                            <div class="absolute top-2 right-2 flex gap-1.5">
+                                <button id="btn-remove-image" type="button" title="Retirer l'image"
+                                    class="px-2.5 py-1 rounded-xl bg-rose-600/90 hover:bg-rose-500 text-white text-xs font-semibold shadow">
+                                    Retirer
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Titre -->
+                <div>
+                    <label for="input-title" class="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1.5">Titre de la carte *</label>
+                    <input id="input-title" type="text" required maxlength="45" placeholder="Ex : YouTube, Mon Portfolio, Coucher de soleil..."
+                        class="w-full px-4 py-2.5 rounded-2xl bg-slate-900/80 border border-white/15 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-sky-400 transition-colors">
+                </div>
+
+                <!-- URL (uniquement pour Site Web) -->
+                <div id="field-url-wrapper">
+                    <label for="input-url" class="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1.5">
+                        Adresse du site Web (URL) <span class="normal-case font-normal text-slate-400">(aperçu généré automatiquement)</span>
+                    </label>
+                    <div class="flex items-center gap-2">
+                        <input id="input-url" type="text" placeholder="https://www.exemple.com"
+                            class="flex-1 min-w-0 px-4 py-2.5 rounded-2xl bg-slate-900/80 border border-white/15 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-sky-400 transition-colors">
+                        <button id="btn-generate-web-preview" type="button" title="Capturer un aperçu du site"
+                            class="px-3.5 py-2.5 rounded-2xl bg-sky-500/20 hover:bg-sky-500/35 border border-sky-400/30 text-sky-200 text-xs font-semibold whitespace-nowrap transition-all shrink-0">
+                            ✨ Aperçu
+                        </button>
+                    </div>
+                    <p id="web-preview-status" class="hidden text-[11px] text-sky-300 mt-1.5"></p>
+                </div>
+
+                <!-- Description -->
+                <div>
+                    <label for="input-desc" class="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1.5">Description courte</label>
+                    <input id="input-desc" type="text" maxlength="90" placeholder="Une note ou légende affichée sous la carte..."
+                        class="w-full px-4 py-2.5 rounded-2xl bg-slate-900/80 border border-white/15 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-sky-400 transition-colors">
+                </div>
+
+                <!-- Couleur d'accentuation du cadre 3D -->
+                <div>
+                    <label class="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">Couleur d'accentuation 3D</label>
+                    <div id="color-swatches" class="flex flex-wrap items-center gap-2.5">
+                        <!-- Généré dynamiquement en JS -->
+                    </div>
+                </div>
+
+                <!-- Boutons d'action du formulaire -->
+                <div class="pt-2 flex items-center justify-between gap-3 border-t border-white/10">
+                    <button id="btn-delete-card" type="button"
+                        class="hidden px-4 py-2.5 rounded-2xl bg-rose-500/15 hover:bg-rose-500/30 text-rose-300 border border-rose-500/30 text-sm font-semibold transition-all">
+                        Supprimer
+                    </button>
+                    <div class="flex items-center gap-2 ml-auto">
+                        <button id="btn-cancel-editor" type="button"
+                            class="px-4 py-2.5 rounded-2xl bg-white/10 hover:bg-white/15 text-slate-200 text-sm font-medium transition-all">
+                            Annuler
+                        </button>
+                        <button type="submit"
+                            class="px-5 py-2.5 rounded-2xl bg-gradient-to-r from-sky-500 to-indigo-600 hover:from-sky-400 hover:to-indigo-500 text-white text-sm font-bold shadow-lg shadow-indigo-500/25 transition-all">
+                            Enregistrer
+                        </button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- ==================== GESTIONNAIRE DE SAUVEGARDES & IMPORT/EXPORT ==================== -->
+    <div id="modal-manager" class="hidden fixed inset-0 z-40 bg-slate-950/75 backdrop-blur-md flex items-center justify-end">
+        <div class="animate-modal glass-panel w-full max-w-md h-auto max-h-[90vh] sm:m-4 sm:rounded-3xl flex flex-col overflow-hidden">
+            <div class="px-6 py-4 border-b border-white/10 flex items-center justify-between">
+                <div>
+                    <h2 class="text-lg font-bold text-white">Sauvegardes</h2>
+                    <p class="text-xs text-slate-400">Exportez, importez ou réinitialisez votre espace 3D</p>
+                </div>
+                <button id="btn-close-manager" type="button" class="p-1.5 rounded-xl text-slate-400 hover:text-white hover:bg-white/10">
+                    <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+            </div>
+
+            <!-- Outils d'exportation, sauvegarde JSON et réinitialisation -->
+            <div class="p-4 border-t border-white/10 bg-slate-900/50 space-y-2">
+                <button id="btn-export-html" type="button"
+                    class="w-full px-3 py-2.5 rounded-xl bg-gradient-to-r from-sky-500 to-indigo-600 hover:from-sky-400 hover:to-indigo-500 text-xs font-bold text-white shadow-lg shadow-indigo-500/25 flex items-center justify-center gap-2 transition-all active:scale-[0.98]">
+                    <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                    </svg>
+                    <span>Exporter le site web rempli (.html)</span>
+                </button>
+                <div class="grid grid-cols-2 gap-2">
+                    <button id="btn-export-json" type="button"
+                        class="px-3 py-2 rounded-xl bg-white/10 hover:bg-white/15 text-xs font-semibold text-white flex items-center justify-center gap-1.5 transition-all">
+                        <span>⬇️</span> Exporter JSON
+                    </button>
+                    <label class="px-3 py-2 rounded-xl bg-white/10 hover:bg-white/15 text-xs font-semibold text-white flex items-center justify-center gap-1.5 cursor-pointer transition-all">
+                        <span>⬆️</span> Importer JSON
+                        <input id="input-import-json" type="file" accept="application/json" class="hidden">
+                    </label>
+                </div>
+                <button id="btn-reset-demo" type="button"
+                    class="w-full py-2 rounded-xl text-xs font-medium text-rose-300 hover:bg-rose-500/15 transition-all">
+                    Vider tout l'espace 3D
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==================== MENU CONTEXTUEL (CLIC DROIT SUR CARTE 3D) ==================== -->
+    <div id="card-context-menu" class="hidden fixed z-50 glass-panel rounded-2xl p-1.5 min-w-[170px] shadow-2xl border border-white/15">
+        <button id="ctx-btn-edit" type="button"
+            class="w-full px-3 py-2 rounded-xl text-left text-xs font-semibold text-slate-200 hover:text-white hover:bg-white/10 flex items-center gap-2.5 transition-colors">
+            <svg class="w-4 h-4 text-sky-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+            </svg>
+            Modifier
+        </button>
+        <button id="ctx-btn-delete" type="button"
+            class="w-full px-3 py-2 rounded-xl text-left text-xs font-semibold text-rose-300 hover:text-rose-200 hover:bg-rose-500/15 flex items-center gap-2.5 transition-colors">
+            <svg class="w-4 h-4 text-rose-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+            </svg>
+            Supprimer
+        </button>
+    </div>
+
+    <!-- ==================== BOÎTE DE CONFIRMATION PERSONNALISÉE ==================== -->
+    <div id="modal-confirm" class="hidden fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm">
+        <div id="confirm-dialog" class="animate-modal glass-panel fixed max-w-sm w-[calc(100vw-1.5rem)] rounded-3xl p-6 text-center">
+            <h3 id="confirm-title" class="text-base font-bold text-white mb-2">Confirmer l'action</h3>
+            <p id="confirm-message" class="text-xs text-slate-300 mb-5">Êtes-vous sûr de vouloir continuer ?</p>
+            <div class="flex items-center justify-center gap-2.5">
+                <button id="btn-confirm-cancel" type="button"
+                    class="px-4 py-2 rounded-2xl bg-white/10 hover:bg-white/15 text-slate-200 text-xs font-semibold transition-all">
+                    Annuler
+                </button>
+                <button id="btn-confirm-ok" type="button"
+                    class="px-4 py-2 rounded-2xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold shadow-lg shadow-rose-500/25 transition-all">
+                    Confirmer
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==================== LECTEUR PDF INTÉGRÉ ==================== -->
+    <div id="modal-pdf-viewer" class="hidden fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-1.5 sm:p-3">
+        <div id="pdf-viewer-dialog" class="animate-modal glass-panel w-[96vw] max-w-none h-[96vh] rounded-2xl sm:rounded-3xl overflow-hidden flex flex-col transition-all duration-200">
+            <div class="px-3 sm:px-6 py-3 border-b border-white/10 flex flex-wrap items-center justify-between gap-2">
+                <div class="flex items-center gap-3 min-w-0">
+                    <div class="w-9 h-9 rounded-xl bg-rose-500/20 text-rose-300 flex items-center justify-center text-lg shrink-0">📄</div>
+                    <div class="min-w-0">
+                        <h2 id="pdf-viewer-title" class="text-sm sm:text-base font-bold text-white truncate">Document PDF</h2>
+                        <p id="pdf-viewer-meta" class="text-[11px] text-slate-400 truncate"></p>
+                    </div>
+                </div>
+                <div class="flex flex-wrap items-center gap-1.5 sm:gap-2 shrink-0">
+                    <button id="btn-pdf-fit-width" type="button" title="Ajuster à toute la largeur"
+                        class="px-2.5 py-1.5 rounded-xl bg-white/10 hover:bg-white/15 text-slate-200 text-xs font-semibold transition-all">
+                        ↔ Largeur
+                    </button>
+                    <button id="btn-pdf-fit-page" type="button" title="Afficher toute la page"
+                        class="px-2.5 py-1.5 rounded-xl bg-white/10 hover:bg-white/15 text-slate-200 text-xs font-semibold transition-all">
+                        ⊡ Toute la page
+                    </button>
+                    <button id="btn-pdf-fullscreen" type="button" title="Agrandir le lecteur"
+                        class="px-2.5 py-1.5 rounded-xl bg-white/10 hover:bg-white/15 text-slate-200 text-xs font-semibold transition-all">
+                        ⛶ Plein écran
+                    </button>
+                    <div class="flex items-center bg-white/10 rounded-xl p-0.5">
+                        <button id="btn-pdf-zoom-out" type="button" title="Dézoomer"
+                            class="px-2 py-1 rounded-lg text-slate-200 hover:bg-white/10 text-xs font-bold transition-colors">−</button>
+                        <span id="pdf-zoom-label" class="px-2 text-[11px] font-mono text-slate-200 min-w-[3rem] text-center">100%</span>
+                        <button id="btn-pdf-zoom-in" type="button" title="Zoomer"
+                            class="px-2 py-1 rounded-lg text-slate-200 hover:bg-white/10 text-xs font-bold transition-colors">+</button>
+                    </div>
+                    <button id="btn-pdf-download" type="button"
+                        class="px-3 py-1.5 rounded-xl bg-sky-500/20 hover:bg-sky-500/35 border border-sky-400/30 text-sky-200 text-xs font-semibold transition-all inline-flex items-center gap-1.5">
+                        <span>⬇️</span> <span class="hidden sm:inline">Télécharger</span>
+                    </button>
+                    <button id="btn-close-pdf-viewer" type="button" title="Fermer"
+                        class="p-1.5 rounded-xl text-slate-400 hover:text-white hover:bg-white/10 transition-colors">
+                        <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                    </button>
+                </div>
+            </div>
+            <div id="pdf-viewer-body" class="flex-1 overflow-y-auto custom-scroll bg-slate-950/80 p-3 sm:p-6 flex flex-col items-center gap-4">
+                <div id="pdf-viewer-loading" class="hidden my-auto text-center text-slate-300 text-sm">
+                    Chargement du document PDF…
+                </div>
+                <div id="pdf-viewer-pages" class="w-full flex flex-col items-center gap-4"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==================== LECTEUR SITE WEB INTÉGRÉ ==================== -->
+    <div id="modal-web-viewer" class="hidden fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-2 sm:p-5">
+        <div id="web-viewer-dialog" class="animate-modal glass-panel w-full max-w-6xl h-[92vh] rounded-3xl overflow-hidden flex flex-col transition-all duration-200">
+            <div class="px-3 sm:px-6 py-3 border-b border-white/10 flex flex-wrap items-center justify-between gap-2">
+                <div class="flex items-center gap-3 min-w-0">
+                    <div id="web-viewer-icon" class="w-9 h-9 rounded-xl bg-sky-500/20 text-sky-300 flex items-center justify-center text-lg shrink-0">🌐</div>
+                    <div class="min-w-0">
+                        <h2 id="web-viewer-title" class="text-sm sm:text-base font-bold text-white truncate">Site Web</h2>
+                        <p id="web-viewer-meta" class="text-[11px] text-slate-400 truncate"></p>
+                    </div>
+                </div>
+                <div class="flex flex-wrap items-center gap-1.5 sm:gap-2 shrink-0">
+                    <button id="btn-web-reload" type="button" title="Recharger la page"
+                        class="px-2.5 py-1.5 rounded-xl bg-white/10 hover:bg-white/15 text-slate-200 text-xs font-semibold transition-all">
+                        ↻ <span class="hidden sm:inline">Recharger</span>
+                    </button>
+                    <button id="btn-web-fullscreen" type="button" title="Agrandir la boîte"
+                        class="px-2.5 py-1.5 rounded-xl bg-white/10 hover:bg-white/15 text-slate-200 text-xs font-semibold transition-all">
+                        ⛶ Plein écran
+                    </button>
+                    <button id="btn-web-external" type="button" title="Ouvrir dans un nouvel onglet"
+                        class="px-3 py-1.5 rounded-xl bg-sky-500/20 hover:bg-sky-500/35 border border-sky-400/30 text-sky-200 text-xs font-semibold transition-all inline-flex items-center gap-1.5">
+                        <span>↗</span> <span class="hidden sm:inline">Nouvel onglet</span>
+                    </button>
+                    <button id="btn-close-web-viewer" type="button" title="Fermer"
+                        class="p-1.5 rounded-xl text-slate-400 hover:text-white hover:bg-white/10 transition-colors">
+                        <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                    </button>
+                </div>
+            </div>
+            <div id="web-viewer-body" class="flex-1 relative bg-slate-950/90 overflow-hidden">
+                <div id="web-viewer-loading" class="hidden absolute inset-0 z-10 flex flex-col items-center justify-center gap-2 bg-slate-950/85 text-slate-300 text-sm pointer-events-none">
+                    <div class="w-7 h-7 rounded-full border-2 border-sky-400/30 border-t-sky-400 animate-spin"></div>
+                    <span>Chargement du site web…</span>
+                </div>
+                <iframe id="web-viewer-iframe" title="Aperçu du site web"
+                    class="w-full h-full border-0 bg-white"
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                    referrerpolicy="strict-origin-when-cross-origin"
+                    allowfullscreen></iframe>
+            </div>
+            <div class="px-4 py-2 bg-slate-950/90 border-t border-white/10 flex flex-wrap items-center justify-between gap-2 text-[11px] text-slate-400">
+                <span id="web-viewer-footer-note" class="truncate">Certains sites bloquent l’affichage intégré (sécurité X-Frame-Options).</span>
+                <a id="link-web-external-fallback" href="#" target="_blank" rel="noopener noreferrer"
+                    class="text-sky-300 hover:text-sky-200 font-semibold transition-colors shrink-0">
+                    Ouvrir directement dans un nouvel onglet ↗
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==================== MODALE RECHERCHE RAPIDE (CTRL+K) ==================== -->
+    <div id="modal-search" class="hidden fixed inset-0 z-50 flex items-start justify-center pt-14 sm:pt-24 p-4 bg-slate-950/70 backdrop-blur-md" role="dialog" aria-modal="true" aria-label="Recherche rapide">
+        <div id="search-dialog" class="glass-panel rounded-3xl w-full max-w-xl overflow-hidden shadow-2xl border border-white/15 animate-modal">
+            <div class="flex items-center gap-3 px-4 py-3.5 border-b border-white/10">
+                <svg class="w-5 h-5 text-sky-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-4.35-4.35m1.85-5.15a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+                <input id="search-input" type="text" autocomplete="off" spellcheck="false"
+                    placeholder="Rechercher une carte, un site, un PDF ou une galaxie..."
+                    class="w-full bg-transparent text-sm sm:text-base text-white placeholder-slate-400 focus:outline-none">
+                <button id="btn-search-clear" type="button" class="hidden text-xs text-slate-400 hover:text-white px-2 py-1 rounded-lg bg-white/5 hover:bg-white/10 transition-colors">
+                    Effacer
+                </button>
+                <kbd class="hidden sm:inline-flex items-center px-2 py-0.5 rounded-lg bg-white/10 border border-white/10 text-[10px] font-mono text-slate-300 shrink-0">Échap</kbd>
+            </div>
+
+            <div id="search-results" class="max-h-[55vh] overflow-y-auto custom-scroll p-2 space-y-1">
+                <!-- Résultats générés dynamiquement -->
+            </div>
+
+            <div class="px-4 py-2.5 border-t border-white/10 bg-slate-950/40 flex items-center justify-between text-[11px] text-slate-400">
+                <div class="flex items-center gap-3">
+                    <span><kbd class="px-1.5 py-0.5 rounded bg-white/10 font-mono text-[10px] text-slate-300">↑↓</kbd> naviguer</span>
+                    <span><kbd class="px-1.5 py-0.5 rounded bg-white/10 font-mono text-[10px] text-slate-300">Entrée</kbd> centrer en 3D</span>
+                </div>
+                <span id="search-count" class="font-mono text-slate-300">0 résultat</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==================== OVERLAY DE GLISSER-DÉPOSER GLOBAL ==================== -->
+    <div id="global-drop-overlay" class="hidden fixed inset-0 z-50 bg-slate-950/75 backdrop-blur-md flex items-center justify-center p-6 pointer-events-none">
+        <div class="w-full max-w-md rounded-3xl border-2 border-dashed border-sky-400 bg-sky-500/10 p-8 text-center shadow-2xl shadow-sky-500/20">
+            <div class="w-16 h-16 mx-auto mb-4 rounded-2xl bg-sky-500/20 text-sky-300 flex items-center justify-center text-3xl">
+                ✨
+            </div>
+            <h3 class="text-lg font-bold text-white mb-1">Déposez pour ajouter en 3D</h3>
+            <p class="text-xs text-slate-300">Images (PNG, JPG, WEBP), fichiers PDF ou liens de sites web ajoutés automatiquement</p>
+        </div>
+    </div>
+
+    <!-- ==================== CONTENEUR DES NOTIFICATIONS TOAST ==================== -->
+    <div id="toast-container" class="fixed top-20 right-4 z-50 flex flex-col gap-2 pointer-events-none"></div>
+
+    <!-- ==================== DONNÉES PRÉ-REMPLIES (EXPORT HTML) ==================== -->
+    <script id="preloaded-state" type="application/json"></script>
+
+    <!-- ==================== LOGIQUE APPLICATIVE & MOTEUR 3D ==================== -->
+    <script src="js/config.js"></script>
+    <script src="js/storage.js"></script>
+    <script src="js/textures.js"></script>
+    <script src="js/three-scene.js"></script>
+    <script src="js/viewers.js"></script>
+    <script src="js/search.js"></script>
+    <script src="js/ui.js"></script>
+    <script src="js/app.js"></script>
+</body>
+</html>
