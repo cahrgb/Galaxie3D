@@ -10,10 +10,13 @@
             width: 100%;
             height: 100%;
             overflow: hidden;
+            overscroll-behavior: none;
             font-family: 'Inter', sans-serif;
             background-color: #050816;
             color: #f8fafc;
             user-select: none;
+            -webkit-user-select: none;
+            -webkit-touch-callout: none;
         }
 
         /* Conteneur du canvas 3D en arrière-plan */
@@ -25,6 +28,7 @@
             z-index: 0;
             cursor: grab;
             touch-action: none;
+            -webkit-touch-callout: none;
         }
 
         #canvas-container:active {
@@ -87,4 +91,59 @@
         /* Permettre la sélection dans les champs de saisie */
         input, textarea {
             user-select: text;
+            -webkit-user-select: text;
+        }
+
+        /* Défilement fluide sur écrans tactiles */
+        .custom-scroll {
+            -webkit-overflow-scrolling: touch;
+            overscroll-behavior: contain;
+        }
+
+        #galaxy-switcher {
+            touch-action: pan-x;
+            -webkit-overflow-scrolling: touch;
+        }
+
+        /* Prise en charge des encoches et zones sûres sur mobile/tablette */
+        @supports (padding: max(0px)) {
+            #ui-layer {
+                padding-top: max(0.75rem, env(safe-area-inset-top));
+                padding-right: max(0.75rem, env(safe-area-inset-right));
+                padding-bottom: max(0.75rem, env(safe-area-inset-bottom));
+                padding-left: max(0.75rem, env(safe-area-inset-left));
+            }
+            @media (min-width: 640px) {
+                #ui-layer {
+                    padding-top: max(1.25rem, env(safe-area-inset-top));
+                    padding-right: max(1.25rem, env(safe-area-inset-right));
+                    padding-bottom: max(1.25rem, env(safe-area-inset-bottom));
+                    padding-left: max(1.25rem, env(safe-area-inset-left));
+                }
+            }
+            @media (min-width: 768px) {
+                #ui-layer {
+                    padding-top: max(1.5rem, env(safe-area-inset-top));
+                    padding-right: max(1.5rem, env(safe-area-inset-right));
+                    padding-bottom: max(1.5rem, env(safe-area-inset-bottom));
+                    padding-left: max(1.5rem, env(safe-area-inset-left));
+                }
+            }
+        }
+
+        /* Cibles tactiles plus confortables sur mobile et tablette */
+        @media (pointer: coarse) {
+            #card-context-menu button {
+                padding-top: 0.7rem;
+                padding-bottom: 0.7rem;
+                font-size: 0.875rem;
+            }
+            #btn-pdf-zoom-out,
+            #btn-pdf-zoom-in {
+                min-width: 2.25rem;
+                min-height: 2.25rem;
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+            }
         }

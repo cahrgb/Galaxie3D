@@ -482,6 +482,62 @@
                     renderActivePdfPages();
                 });
             }
+            // Zoom par pincement à deux doigts dans le lecteur PDF
+            const pdfBodyEl = document.getElementById('pdf-viewer-body');
+            const pdfPagesEl = document.getElementById('pdf-viewer-pages');
+            if (pdfBodyEl && pdfPagesEl) {
+                let pdfPinchStartDist = 0;
+                let pdfPinchStartZoom = 1.0;
+                let pdfPinchTargetZoom = 1.0;
+                let isPdfPinching = false;
+
+                pdfBodyEl.addEventListener('touchstart', (e) => {
+                    if (!activePdfDoc || e.touches.length !== 2) return;
+                    isPdfPinching = true;
+                    pdfPinchStartDist = Math.hypot(
+                        e.touches[1].clientX - e.touches[0].clientX,
+                        e.touches[1].clientY - e.touches[0].clientY
+                    );
+                    pdfPinchStartZoom = activePdfZoom;
+                    pdfPinchTargetZoom = activePdfZoom;
+                    pdfPagesEl.style.transformOrigin = 'top center';
+                }, { passive: true });
+
+                pdfBodyEl.addEventListener('touchmove', (e) => {
+                    if (!isPdfPinching || !activePdfDoc || e.touches.length !== 2 || pdfPinchStartDist <= 0) return;
+                    e.preventDefault();
+                    const dist = Math.hypot(
+                        e.touches[1].clientX - e.touches[0].clientX,
+                        e.touches[1].clientY - e.touches[0].clientY
+                    );
+                    const rawZoom = pdfPinchStartZoom * (dist / pdfPinchStartDist);
+                    pdfPinchTargetZoom = Math.max(0.4, Math.min(3.0, rawZoom));
+                    const previewScale = pdfPinchTargetZoom / Math.max(0.1, pdfPinchStartZoom);
+                    pdfPagesEl.style.transform = `scale(${previewScale.toFixed(3)})`;
+                    const zoomLabel = document.getElementById('pdf-zoom-label');
+                    if (zoomLabel) zoomLabel.textContent = `${Math.round(pdfPinchTargetZoom * 100)}%`;
+                }, { passive: false });
+
+                const finishPdfPinch = () => {
+                    if (!isPdfPinching) return;
+                    isPdfPinching = false;
+                    pdfPagesEl.style.transform = '';
+                    pdfPagesEl.style.transformOrigin = '';
+                    const rounded = Math.max(0.4, Math.min(3.0, Math.round(pdfPinchTargetZoom * 20) / 20));
+                    if (activePdfDoc && Math.abs(rounded - activePdfZoom) >= 0.05) {
+                        activePdfZoom = rounded;
+                        updatePdfZoomLabel();
+                        renderActivePdfPages();
+                    } else {
+                        updatePdfZoomLabel();
+                    }
+                };
+
+                pdfBodyEl.addEventListener('touchend', (e) => {
+                    if (e.touches.length < 2) finishPdfPinch();
+                }, { passive: true });
+                pdfBodyEl.addEventListener('touchcancel', finishPdfPinch, { passive: true });
+            }
             const downloadPdfBtn = document.getElementById('btn-pdf-download');
             if (downloadPdfBtn) {
                 downloadPdfBtn.addEventListener('click', () => {

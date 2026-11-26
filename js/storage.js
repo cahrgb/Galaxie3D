@@ -496,7 +496,48 @@
                 btn.appendChild(iconSpan);
                 btn.appendChild(nameSpan);
 
-                btn.addEventListener('click', () => {
+                let longPressTimer = null;
+                let longPressTriggered = false;
+                let touchStartX = 0;
+                let touchStartY = 0;
+
+                btn.addEventListener('touchstart', (e) => {
+                    if (e.touches.length !== 1) return;
+                    longPressTriggered = false;
+                    touchStartX = e.touches[0].clientX;
+                    touchStartY = e.touches[0].clientY;
+                    clearTimeout(longPressTimer);
+                    longPressTimer = setTimeout(() => {
+                        longPressTimer = null;
+                        longPressTriggered = true;
+                        if (typeof navigator !== 'undefined' && typeof navigator.vibrate === 'function') {
+                            navigator.vibrate(15);
+                        }
+                        startInlineRenameGalaxy(galaxy.id, btn, nameSpan);
+                    }, 550);
+                }, { passive: true });
+
+                btn.addEventListener('touchmove', (e) => {
+                    if (!longPressTimer || e.touches.length !== 1) return;
+                    if (Math.hypot(e.touches[0].clientX - touchStartX, e.touches[0].clientY - touchStartY) > 10) {
+                        clearTimeout(longPressTimer);
+                        longPressTimer = null;
+                    }
+                }, { passive: true });
+
+                const cancelBtnLongPress = () => {
+                    clearTimeout(longPressTimer);
+                    longPressTimer = null;
+                };
+                btn.addEventListener('touchend', cancelBtnLongPress, { passive: true });
+                btn.addEventListener('touchcancel', cancelBtnLongPress, { passive: true });
+
+                btn.addEventListener('click', (e) => {
+                    if (longPressTriggered) {
+                        longPressTriggered = false;
+                        e.preventDefault();
+                        return;
+                    }
                     switchGalaxy(galaxy.id);
                 });
 

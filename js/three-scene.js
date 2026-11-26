@@ -514,7 +514,7 @@
                 }
             });
 
-            // --- Menu contextuel (clic droit sur carte 3D) ---
+            // --- Menu contextuel (clic droit ou appui long tactile sur carte 3D) ---
             const contextMenuEl = document.getElementById('card-context-menu');
             let contextMenuItem = null;
 
@@ -523,34 +523,39 @@
                 contextMenuItem = null;
             }
 
-            container.addEventListener('contextmenu', (e) => {
-                e.preventDefault();
+            function openCardContextMenuAt(clientX, clientY) {
                 if (isAnyModalOpen()) {
                     hideCardContextMenu();
-                    return;
+                    return false;
                 }
                 if (isOptionsMenuOpen()) closeOptionsMenu();
 
-                const hitIndex = getIntersectedCardIndex(e.clientX, e.clientY);
+                const hitIndex = getIntersectedCardIndex(clientX, clientY);
                 if (hitIndex === -1) {
                     hideCardContextMenu();
-                    return;
+                    return false;
                 }
 
                 const item = cardMeshes[hitIndex]?.userData?.item;
                 if (!item || !contextMenuEl) {
                     hideCardContextMenu();
-                    return;
+                    return false;
                 }
 
                 contextMenuItem = item;
                 contextMenuEl.classList.remove('hidden');
 
                 const menuRect = contextMenuEl.getBoundingClientRect();
-                const x = Math.min(e.clientX, window.innerWidth - menuRect.width - 8);
-                const y = Math.min(e.clientY, window.innerHeight - menuRect.height - 8);
+                const x = Math.min(clientX, window.innerWidth - menuRect.width - 8);
+                const y = Math.min(clientY, window.innerHeight - menuRect.height - 8);
                 contextMenuEl.style.left = `${Math.max(8, x)}px`;
                 contextMenuEl.style.top = `${Math.max(8, y)}px`;
+                return true;
+            }
+
+            container.addEventListener('contextmenu', (e) => {
+                e.preventDefault();
+                openCardContextMenuAt(e.clientX, e.clientY);
             });
 
             document.getElementById('ctx-btn-edit')?.addEventListener('click', () => {
@@ -576,7 +581,7 @@
                 );
             });
 
-            window.addEventListener('mousedown', (e) => {
+            window.addEventListener('pointerdown', (e) => {
                 if (contextMenuEl && !contextMenuEl.classList.contains('hidden') && !contextMenuEl.contains(e.target)) {
                     hideCardContextMenu();
                 }
@@ -587,9 +592,13 @@
             window.addEventListener('wheel', hideCardContextMenu, { passive: true });
             window.addEventListener('resize', hideCardContextMenu, { passive: true });
 
+            // Horodatage du dernier événement tactile pour ignorer les événements souris synthétiques
+            let lastTouchTimestamp = 0;
+            const isRecentTouch = () => (performance.now() - lastTouchTimestamp) < 600;
+
             // --- Souris ---
             container.addEventListener('mousedown', (e) => {
-                if (e.button !== 0 || isAnyModalOpen()) return;
+                if (isRecentTouch() || e.button !== 0 || isAnyModalOpen()) return;
                 isPointerDown = true;
                 hasDragged = false;
                 hoverDirty = false;
@@ -598,7 +607,7 @@
             });
 
             window.addEventListener('mousemove', (e) => {
-                if (isAnyModalOpen()) return;
+                if (isRecentTouch() || isAnyModalOpen()) return;
 
                 if (isPointerDown) {
                     const dx = e.clientX - lastPointerX;
@@ -628,7 +637,7 @@
             });
 
             window.addEventListener('mouseup', (e) => {
-                if (!isPointerDown) return;
+                if (isRecentTouch() || !isPointerDown) return;
                 isPointerDown = false;
                 if (!hasDragged) {
                     handleCanvasTap(e.clientX, e.clientY);
@@ -642,39 +651,203 @@
                 cameraOrbit.targetZoom = Math.max(9.5, Math.min(28, cameraOrbit.targetZoom + e.deltaY * 0.01));
             }, { passive: false });
 
-            // --- Tactile (mobile & tablette) ---
+            // --- Tactile (mobile, tablette & écrans tactiles) ---
+            // Supporte : glisser 1 doigt (orbite + inertie), pincement 2 doigts (zoom),
+            // appui long (menu contextuel Modifier/Supprimer), balayage sur carte zoomée (navigation / fermeture)
+            let isPinching = false;
+            let wasPinching = false;
+            let lastPinchDistance = 0;
+            let pinchStartDistance = 0;
+            let longPressTimer = null;
+            let longPressTriggered = false;
+            let touchVelocityYaw = 0;
+            let touchVelocityPitch = 0;
+            let lastTouchMoveTime = 0;
+
+            function getTouchDistance(t1, t2) {
+                return Math.hypot(t2.clientX - t1.clientX, t2.clientY - t1.clientY);
+            }
+
+            function cancelLongPress() {
+                if (longPressTimer !== null) {
+                    clearTimeout(longPressTimer);
+                    longPressTimer = null;
+                }
+            }
+
+            function resetTouchState() {
+                cancelLongPress();
+                isPointerDown = false;
+                isPinching = false;
+                wasPinching = false;
+                longPressTriggered = false;
+                lastPinchDistance = 0;
+                pinchStartDistance = 0;
+                touchVelocityYaw = 0;
+                touchVelocityPitch = 0;
+            }
+
             container.addEventListener('touchstart', (e) => {
-                if (isAnyModalOpen() || e.touches.length !== 1) return;
-                const touch = e.touches[0];
-                isPointerDown = true;
-                hasDragged = false;
-                dragStartX = lastPointerX = touch.clientX;
-                dragStartY = lastPointerY = touch.clientY;
-            }, { passive: true });
+                lastTouchTimestamp = performance.now();
+                if (isAnyModalOpen()) {
+                    resetTouchState();
+                    return;
+                }
+
+                // Effacer l'état de survol souris s'il était actif
+                if (hoveredIndex !== -1) {
+                    hoveredIndex = -1;
+                    container.classList.remove('pointer-card');
+                }
+                hoverDirty = false;
+
+                if (e.touches.length === 1) {
+                    const touch = e.touches[0];
+                    isPinching = false;
+                    wasPinching = false;
+                    longPressTriggered = false;
+                    isPointerDown = true;
+                    hasDragged = false;
+                    dragStartX = lastPointerX = touch.clientX;
+                    dragStartY = lastPointerY = touch.clientY;
+                    touchVelocityYaw = 0;
+                    touchVelocityPitch = 0;
+                    lastTouchMoveTime = lastTouchTimestamp;
+
+                    cancelLongPress();
+                    longPressTimer = setTimeout(() => {
+                        longPressTimer = null;
+                        if (!isPointerDown || hasDragged || isPinching || isAnyModalOpen()) return;
+                        if (openCardContextMenuAt(dragStartX, dragStartY)) {
+                            longPressTriggered = true;
+                            isPointerDown = false;
+                            hasDragged = true;
+                            if (typeof navigator !== 'undefined' && typeof navigator.vibrate === 'function') {
+                                navigator.vibrate(15);
+                            }
+                        }
+                    }, 500);
+                } else if (e.touches.length === 2) {
+                    e.preventDefault();
+                    cancelLongPress();
+                    hideCardContextMenu();
+                    isPinching = true;
+                    wasPinching = true;
+                    hasDragged = true;
+                    isPointerDown = true;
+                    lastPinchDistance = getTouchDistance(e.touches[0], e.touches[1]);
+                    pinchStartDistance = lastPinchDistance;
+                    touchVelocityYaw = 0;
+                    touchVelocityPitch = 0;
+                } else {
+                    cancelLongPress();
+                }
+            }, { passive: false });
 
             container.addEventListener('touchmove', (e) => {
-                if (!isPointerDown || e.touches.length !== 1) return;
+                const now = performance.now();
+                lastTouchTimestamp = now;
+                if (isAnyModalOpen()) return;
+
+                e.preventDefault();
+
+                if (e.touches.length === 2) {
+                    cancelLongPress();
+                    const dist = getTouchDistance(e.touches[0], e.touches[1]);
+                    if (isPinching && lastPinchDistance > 0) {
+                        if (state.selectedIndex === -1) {
+                            const deltaDist = lastPinchDistance - dist;
+                            cameraOrbit.targetZoom = Math.max(9.5, Math.min(28, cameraOrbit.targetZoom + deltaDist * 0.045));
+                        } else if (pinchStartDistance > 0 && (pinchStartDistance - dist) > 45) {
+                            // Pincement vers l'intérieur sur une carte zoomée : la renvoyer à distance
+                            deselectCard();
+                            pinchStartDistance = dist;
+                        }
+                    } else {
+                        pinchStartDistance = dist;
+                    }
+                    lastPinchDistance = dist;
+                    isPinching = true;
+                    wasPinching = true;
+                    hasDragged = true;
+                    return;
+                }
+
+                if (!isPointerDown || isPinching || longPressTriggered || e.touches.length !== 1) return;
+
                 const touch = e.touches[0];
                 const dx = touch.clientX - lastPointerX;
                 const dy = touch.clientY - lastPointerY;
-                if (Math.hypot(touch.clientX - dragStartX, touch.clientY - dragStartY) > 6) {
+                if (Math.hypot(touch.clientX - dragStartX, touch.clientY - dragStartY) > 10) {
                     hasDragged = true;
+                    cancelLongPress();
                 }
                 if (state.selectedIndex === -1) {
-                    cameraOrbit.targetYaw -= dx * 0.0065;
-                    cameraOrbit.targetPitch = Math.max(-0.95, Math.min(0.95, cameraOrbit.targetPitch + dy * 0.0055));
+                    const dYaw = -dx * 0.0065;
+                    const dPitch = dy * 0.0055;
+                    cameraOrbit.targetYaw += dYaw;
+                    cameraOrbit.targetPitch = Math.max(-0.95, Math.min(0.95, cameraOrbit.targetPitch + dPitch));
+
+                    const dtSec = Math.max(0.008, (now - lastTouchMoveTime) / 1000);
+                    touchVelocityYaw = touchVelocityYaw * 0.55 + (dYaw / dtSec) * 0.45;
+                    touchVelocityPitch = touchVelocityPitch * 0.55 + (dPitch / dtSec) * 0.45;
                 }
                 lastPointerX = touch.clientX;
                 lastPointerY = touch.clientY;
-            }, { passive: true });
+                lastTouchMoveTime = now;
+            }, { passive: false });
 
             container.addEventListener('touchend', (e) => {
-                if (!isPointerDown) return;
-                isPointerDown = false;
-                if (!hasDragged && e.changedTouches && e.changedTouches[0]) {
-                    const touch = e.changedTouches[0];
-                    handleCanvasTap(touch.clientX, touch.clientY);
+                const now = performance.now();
+                lastTouchTimestamp = now;
+                cancelLongPress();
+
+                // Transition fluide de 2 doigts vers 1 doigt (sans saut de caméra ni clic involontaire)
+                if (e.touches.length === 1) {
+                    isPinching = false;
+                    wasPinching = true;
+                    hasDragged = true;
+                    lastPinchDistance = 0;
+                    lastPointerX = e.touches[0].clientX;
+                    lastPointerY = e.touches[0].clientY;
+                    lastTouchMoveTime = now;
+                    return;
                 }
+
+                if (e.touches.length > 0) return;
+
+                if (isPointerDown && !wasPinching && !longPressTriggered) {
+                    const touch = e.changedTouches && e.changedTouches[0];
+                    if (!hasDragged && touch) {
+                        handleCanvasTap(touch.clientX, touch.clientY);
+                    } else if (hasDragged && state.selectedIndex !== -1 && touch) {
+                        // Balayage sur carte zoomée : gauche/droite pour naviguer, bas pour fermer
+                        const totalDx = touch.clientX - dragStartX;
+                        const totalDy = touch.clientY - dragStartY;
+                        if (Math.abs(totalDx) > 55 && Math.abs(totalDx) > Math.abs(totalDy) * 1.25 && cardMeshes.length > 1) {
+                            if (totalDx < 0) {
+                                selectCard((state.selectedIndex + 1) % cardMeshes.length);
+                            } else {
+                                selectCard((state.selectedIndex - 1 + cardMeshes.length) % cardMeshes.length);
+                            }
+                        } else if (totalDy > 70 && Math.abs(totalDy) > Math.abs(totalDx) * 1.25) {
+                            deselectCard();
+                        }
+                    } else if (hasDragged && state.selectedIndex === -1 && (now - lastTouchMoveTime) < 100) {
+                        // Inertie douce après un glissement rapide
+                        const yawImpulse = Math.max(-0.85, Math.min(0.85, touchVelocityYaw * 0.14));
+                        const pitchImpulse = Math.max(-0.35, Math.min(0.35, touchVelocityPitch * 0.12));
+                        cameraOrbit.targetYaw += yawImpulse;
+                        cameraOrbit.targetPitch = Math.max(-0.95, Math.min(0.95, cameraOrbit.targetPitch + pitchImpulse));
+                    }
+                }
+
+                resetTouchState();
+            });
+
+            container.addEventListener('touchcancel', () => {
+                lastTouchTimestamp = performance.now();
+                resetTouchState();
             });
 
             // --- Clavier ---
@@ -706,8 +879,8 @@
                 }
             });
 
-            // --- Redimensionnement réactif ---
-            window.addEventListener('resize', () => {
+            // --- Redimensionnement réactif (et rotation d'écran mobile/tablette) ---
+            function handleViewportResize() {
                 if (!camera || !renderer) return;
                 const w = window.innerWidth;
                 const h = window.innerHeight;
@@ -722,6 +895,12 @@
                 for (let idx = 0; idx < total; idx++) {
                     cardMeshes[idx].userData.basePos = computeSparsePosition(idx, total);
                 }
+            }
+
+            window.addEventListener('resize', handleViewportResize);
+            window.addEventListener('orientationchange', () => {
+                hideCardContextMenu();
+                setTimeout(handleViewportResize, 120);
             });
         }
 
