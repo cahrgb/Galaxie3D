@@ -72,6 +72,50 @@
                 toggleOptionsMenu();
             });
 
+            // Bouton Plein écran
+            const fullscreenBtn = document.getElementById('btn-fullscreen-toggle');
+            if (fullscreenBtn) {
+                const enterIcon = document.getElementById('icon-fullscreen-enter');
+                const exitIcon = document.getElementById('icon-fullscreen-exit');
+
+                const updateFullscreenBtnUI = () => {
+                    const isFs = Boolean(document.fullscreenElement || document.webkitFullscreenElement);
+                    fullscreenBtn.setAttribute('aria-pressed', isFs ? 'true' : 'false');
+                    fullscreenBtn.title = isFs ? 'Quitter le plein écran' : 'Plein écran';
+                    fullscreenBtn.setAttribute('aria-label', fullscreenBtn.title);
+                    if (enterIcon) enterIcon.classList.toggle('hidden', isFs);
+                    if (exitIcon) exitIcon.classList.toggle('hidden', !isFs);
+                };
+
+                fullscreenBtn.addEventListener('click', async () => {
+                    const isFs = Boolean(document.fullscreenElement || document.webkitFullscreenElement);
+                    try {
+                        if (!isFs) {
+                            const root = document.documentElement;
+                            if (root.requestFullscreen) {
+                                await root.requestFullscreen();
+                            } else if (root.webkitRequestFullscreen) {
+                                root.webkitRequestFullscreen();
+                            } else {
+                                showToast('Le plein écran n’est pas supporté sur ce navigateur.', 'info');
+                            }
+                        } else {
+                            if (document.exitFullscreen) {
+                                await document.exitFullscreen();
+                            } else if (document.webkitExitFullscreen) {
+                                document.webkitExitFullscreen();
+                            }
+                        }
+                    } catch {
+                        showToast('Impossible d’activer le plein écran.', 'error');
+                    }
+                    updateFullscreenBtnUI();
+                });
+
+                document.addEventListener('fullscreenchange', updateFullscreenBtnUI);
+                document.addEventListener('webkitfullscreenchange', updateFullscreenBtnUI);
+            }
+
             // Fermer le menu si clic en dehors (sauf dans la boîte de confirmation)
             document.addEventListener('click', (e) => {
                 const wrapper = document.getElementById('options-wrapper');
